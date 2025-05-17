@@ -117,11 +117,6 @@
         
         <div class="loader" id="loader"></div>
         <div class="error-message" id="errorMessage"></div>
-        
-        <div class="form-check" style="margin-top: 15px;">
-            <input type="checkbox" class="form-check-input" id="useBase64">
-            <label class="form-check-label" for="useBase64">Gunakan format Base64 (untuk pengujian)</label>
-        </div>
     </div>
     
     <div class="result" id="result">
@@ -171,70 +166,31 @@
                 
                 // Buat FormData
                 const formData = new FormData();
-                formData.append('image', file);
+                formData.append('file', file);
                 
-                // Kirim ke API
-                if (document.getElementById('useBase64').checked) {
-                    // Konversi ke base64 dan kirim sebagai JSON
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
-                    reader.onload = function() {
-                        const base64data = reader.result;
-                        
-                        // Kirim sebagai JSON
-                        fetch('/predict', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                image: base64data
-                            })
-                        })
-                        .then(response => {
-                            if (!response.ok) {
-                                return response.json().then(err => {
-                                    throw new Error(err.error || 'Terjadi kesalahan saat mengirim gambar.');
-                                });
-                            }
-                            return response.json();
-                        })
-                        .then(data => {
-                            displayResults(data);
-                        })
-                        .catch(error => {
-                            errorMessage.textContent = error.message;
-                            errorMessage.style.display = 'block';
-                        })
-                        .finally(() => {
-                            loader.style.display = 'none';
+                // Kirim ke API sebagai form data
+                fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => {
+                            throw new Error(err.error || 'Terjadi kesalahan saat mengirim gambar.');
                         });
-                    };
-                } else {
-                    // Kirim sebagai form data
-                    fetch('/predict', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.json().then(err => {
-                                throw new Error(err.error || 'Terjadi kesalahan saat mengirim gambar.');
-                            });
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        displayResults(data);
-                    })
-                    .catch(error => {
-                        errorMessage.textContent = error.message;
-                        errorMessage.style.display = 'block';
-                    })
-                    .finally(() => {
-                        loader.style.display = 'none';
-                    });
-                }
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    displayResults(data);
+                })
+                .catch(error => {
+                    errorMessage.textContent = error.message;
+                    errorMessage.style.display = 'block';
+                })
+                .finally(() => {
+                    loader.style.display = 'none';
+                });
             });
             
             // Fungsi untuk menampilkan hasil

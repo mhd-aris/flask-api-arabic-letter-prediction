@@ -95,12 +95,9 @@
         <h2>Parameter Request</h2>
         <p>Endpoint ini menerima file gambar yang dapat dikirim dengan beberapa cara:</p>
         <ul>
-            <li>Menggunakan form data dengan nama field <code>image</code></li>
+            <li>Menggunakan form data dengan nama field <code>file</code> (multipart/form-data)</li>
             <li>Menggunakan form data tanpa nama field spesifik (kompatibel dengan MIT App Inventor)</li>
             <li>Mengirim data gambar mentah sebagai body request (binary)</li>
-            <li>Mengirim JSON dengan field <code>image</code> yang berisi string gambar base64</li>
-            <li>Mengirim teks biasa (plain text) berisi string base64 (kompatibel dengan MIT App Inventor PostText)</li>
-            <li>Mengirim form URL-encoded dengan field <code>image</code> berisi string base64</li>
         </ul>
         
         <h2>Response</h2>
@@ -125,23 +122,15 @@
         <h3>1. Tambahkan komponen Web pada MIT App Inventor</h3>
         <p>Tambahkan komponen <code>Web</code> ke aplikasi Anda.</p>
         
-        <h3>2. Opsi 1: Menggunakan PostFile</h3>
+        <h3>2. Gunakan PostFile untuk mengirim gambar</h3>
         <p>Gunakan blok <code>Web.PostFile</code> untuk mengirim gambar ke API. Contoh konfigurasi:</p>
         <ul>
             <li>URL: <code>http://[alamat_server_anda]:5000/predict</code></li>
             <li>Path ke file: path ke gambar dari perangkat</li>
         </ul>
         
-        <h3>2. Opsi 2: Menggunakan PostText dengan Base64</h3>
-        <p>Alternatif lain, Anda dapat menggunakan <code>Web.PostText</code> dengan gambar yang dikonversi ke base64:</p>
-        <ol>
-            <li>Ambil gambar dari kamera atau pemilih file</li>
-            <li>Konversi gambar ke base64 menggunakan <code>Canvas.toBase64</code> atau <code>File.ReadBase64</code></li>
-            <li>Kirim string base64 menggunakan <code>Web.PostText</code> dengan Content-Type: text/plain</li>
-        </ol>
-        
         <div class="note">
-            <p><strong>Catatan:</strong> API ini didesain khusus untuk mendukung MIT App Inventor baik menggunakan PostFile maupun PostText dengan base64.</p>
+            <p><strong>Catatan:</strong> API ini didesain khusus untuk mendukung MIT App Inventor menggunakan PostFile.</p>
         </div>
         
         <h3>3. Menangani response</h3>
@@ -158,41 +147,23 @@ when Web.GotText
     </div>
     
     <div class="container">
-        <h2>Contoh Penggunaan dengan Base64</h2>
-        <p>Untuk mengirim gambar dengan format base64:</p>
+        <h2>Contoh Penggunaan dengan File Upload</h2>
         
         <h3>Contoh Request dengan curl:</h3>
         <pre><code>curl -X POST \
   http://localhost:5000/predict \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "image": "/9j/4AAQSkZJRgABAQEA..."
-  }'</code></pre>
+  -F 'file=@/path/to/image.jpg'</code></pre>
         
         <h3>Contoh dengan JavaScript:</h3>
-        <pre><code>// Mengonversi file gambar ke base64
-const fileToBase64 = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = (error) => reject(error);
-  });
-};
-
-// Mengirim gambar base64 ke API
+        <pre><code>// Mengirim gambar ke API
 async function predictImage(file) {
   try {
-    const base64Image = await fileToBase64(file);
+    const formData = new FormData();
+    formData.append('file', file);
     
     const response = await fetch('http://localhost:5000/predict', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        image: base64Image
-      }),
+      body: formData
     });
     
     const result = await response.json();
@@ -203,25 +174,22 @@ async function predictImage(file) {
   }
 }</code></pre>
 
-        <h3>Contoh dengan MIT App Inventor (PostText):</h3>
+        <h3>Contoh dengan MIT App Inventor:</h3>
         <p>Berikut adalah pseudocode untuk blok di MIT App Inventor:</p>
         <pre><code>// 1. Ambil gambar dari kamera
 when ButtonTakePicture.Click
   call Camera1.TakePicture
 
-// 2. Setelah gambar diambil
+// 2. Setelah gambar diambil, kirim ke API
 when Camera1.AfterPicture(image)
   set ImagePath to image
   call Canvas1.DrawImage(image, 0, 0)
   
-// 3. Konversi ke base64 dan kirim
+// 3. Kirim file
 when ButtonPredict.Click
-  set base64Image to Canvas1.toBase64("jpeg")
-  call Web1.PostText(
+  call Web1.PostFile(
     Url: "http://[alamat_server_anda]:5000/predict",
-    Text: base64Image,
-    Encoding: "UTF-8",
-    ContentType: "text/plain"
+    Path: ImagePath
   )
 
 // 4. Tangani response
@@ -233,16 +201,7 @@ when Web1.GotText(responseContent)
   // Tampilkan hasil
   set LabelHasil.Text to "Huruf: " + predictedLabel
   set LabelKeyakinan.Text to "Keyakinan: " + confidencePercent</code></pre>
-
-        <h3>Contoh dengan Form URL-Encoded:</h3>
-        <pre><code>curl -X POST \
-  http://localhost:5000/predict \
-  -H 'Content-Type: application/x-www-form-urlencoded' \
-  --data-urlencode 'image=/9j/4AAQSkZJRgABAQEA...'</code></pre>
         
-        <div class="note">
-            <p><strong>Catatan:</strong> Saat mengirim gambar base64, API menerima format lengkap dengan awalan <code>data:image/jpeg;base64,</code> atau hanya string base64-nya saja.</p>
-        </div>
     </div>
     
     <a href="/" class="back-link">Kembali ke Halaman Utama</a>

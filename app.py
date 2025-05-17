@@ -4,7 +4,6 @@ from tensorflow.keras.utils import img_to_array, load_img
 import numpy as np
 import os
 import logging
-import base64
 import io
 from PIL import Image
 import time
@@ -13,7 +12,7 @@ import shutil
 import datetime
 
 # Konfigurasi logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Inisialisasi Flask
@@ -101,44 +100,40 @@ def log_request(request_type, prediction=None, error=None):
         if request.form:
             f.write("Form Data:\n")
             for k, v in request.form.items():
-                # Potong nilai yang panjang (seperti base64)
+                # Potong nilai yang panjang
                 value_preview = v[:50] + "..." if len(v) > 50 else v
                 f.write(f"  {k}: {value_preview}\n")
         
         # Log body request (jika ada dan bukan file)
-        if request_type == "json_base64":
+        if request_type == "json_file_upload":
             try:
-                # Simpan JSON tanpa data base64 yang panjang
+                # Simpan JSON
                 json_body = request.get_json()
-                if 'image' in json_body:
-                    # Potong data base64 yang panjang
-                    base64_preview = json_body['image'][:50] + "..." if len(json_body['image']) > 50 else json_body['image']
-                    json_body['image'] = base64_preview
                 f.write("Request Body (JSON):\n")
                 f.write(f"  {json_body}\n")
             except:
                 f.write("Request Body: Unable to parse JSON\n")
-        elif request_type == "form_urlencoded_base64":
+        elif request_type == "form_urlencoded_upload":
             try:
                 f.write("Request Body (Form URL-Encoded):\n")
                 for key in request.form:
                     value = request.form[key]
-                    # Potong nilai yang panjang (seperti base64)
+                    # Potong nilai yang panjang
                     if len(value) > 50:
                         value = value[:50] + "..."
                     f.write(f"  {key}: {value}\n")
             except:
                 f.write("Request Body: Unable to parse form data\n")
-        elif request_type == "text_base64":
+        elif request_type == "text_upload":
             try:
-                # Potong data base64 yang panjang
+                # Potong data yang panjang
                 text_body = request.data.decode('utf-8')
                 text_preview = text_body[:50] + "..." if len(text_body) > 50 else text_body
                 f.write("Request Body (Text):\n")
                 f.write(f"  {text_preview}\n")
             except:
                 f.write("Request Body: Unable to decode text\n")
-        elif request_type == "form_data_image" or request_type == "form_data_unnamed":
+        elif request_type == "form_data_file" or request_type == "form_data_unnamed":
             f.write("Request Body: Form data with file upload\n")
             try:
                 if 'file' in request.files:
@@ -265,207 +260,23 @@ def predict():
         
         # Cek jika request JSON dengan base64
         if request.is_json:
-            request_type = "json_base64"
-            logger.info(f"Menerima request JSON dengan base64 dari {request.remote_addr}")
-            data = request.get_json()
-            if 'file' in data and data['file']:
-                # Decode base64 ke gambar
-                try:
-                    # Hilangkan 'data:image/jpeg;base64,' jika ada
-                    if ',' in data['file']:
-                        base64_data = data['file'].split(',')[1]
-                    else:
-                        base64_data = data['file']
-                    
-                    # Decode base64
-                    image_data = base64.b64decode(base64_data)
-                    data_size = len(image_data)
-                    
-                    # Konversi ke PIL Image
-                    image = Image.open(io.BytesIO(image_data))
-                    image_size = f"{image.width}x{image.height}"
-                    
-                    # Simpan sampel untuk debugging jika diaktifkan
-                    request_id = str(uuid.uuid4())[:8]
-                    if save_debug_sample:
-                        sample_path = save_sample_image(image, request_id, request_type)
-                        logger.info(f"Sampel gambar disimpan: {sample_path}")
-                    
-                    # Proses gambar
-                    img_array = preprocess_image(image)
-                    pred = model.predict(img_array)
-                    pred_index = np.argmax(pred)
-                    confidence = float(pred[0][pred_index])
-                    predicted_label = class_names[pred_index]
-                    
-                    # Update sampel dengan hasil prediksi
-                    if save_debug_sample:
-                        new_sample_path = save_sample_image(image, request_id, request_type, predicted_label)
-                        # Hapus sampel awal tanpa hasil prediksi
-                        if os.path.exists(sample_path):
-                            os.remove(sample_path)
-                        logger.info(f"Sampel gambar dengan prediksi disimpan: {new_sample_path}")
-                    
-                    result = {
-                        'predicted_class': predicted_label,
-                        'confidence': confidence,
-                        'confidence_percent': f"{confidence * 100:.2f}%"
-                    }
-                    
-                    # Log request berhasil dengan detail tambahan
-                    request_id, _ = log_request(request_type, prediction=result)
-                    
-                    # Log detail tambahan
-                    processing_time = time.time() - start_time
-                    logger.info(f"REQUEST #{request_id} | Data size: {data_size} bytes | " +
-                               f"Image size: {image_size} | Processing time: {processing_time:.4f}s")
-                    
-                    return jsonify(result)
-                except Exception as e:
-                    # Log error
-                    log_request(request_type, error=str(e))
-                    logger.error(f"Error pada proses base64: {str(e)}")
-                    return jsonify({'error': f"Invalid base64 file: {str(e)}"}), 400
-            else:
-                log_request(request_type, error="No base64 file provided")
-                return jsonify({'error': 'No base64 file provided'}), 400
+            request_type = "json_file_upload"
+            logger.info(f"Menerima request JSON dari {request.remote_addr}")
+            return jsonify({'error': 'JSON base64 tidak lagi didukung. Gunakan multipart/form-data untuk upload file langsung'}), 400
         
         # Cek jika request adalah form-urlencoded dengan base64
         elif request.content_type and 'application/x-www-form-urlencoded' in request.content_type:
-            request_type = "form_urlencoded_base64"
+            request_type = "form_urlencoded_upload"
             logger.info(f"Menerima request form-urlencoded dari {request.remote_addr}")
-            
-            # Log semua field dalam form data
-            logger.info(f"Form data keys: {list(request.form.keys())}")
-            for key in request.form:
-                value = request.form[key]
-                value_preview = value[:50] + "..." if len(value) > 50 else value
-                logger.info(f"Form field: {key} = {value_preview}")
-            
-            # Cek apakah ada field 'file' di form data
-            if 'file' in request.form:
-                try:
-                    base64_data = request.form['file']
-                    data_size = len(base64_data)
-                    logger.info(f"Form-urlencoded data size: {data_size} bytes")
-                    
-                    # Hilangkan 'data:image/jpeg;base64,' jika ada
-                    if ',' in base64_data:
-                        base64_data = base64_data.split(',')[1]
-                    
-                    # Decode base64
-                    image_data = base64.b64decode(base64_data)
-                    
-                    # Konversi ke PIL Image
-                    image = Image.open(io.BytesIO(image_data))
-                    image_size = f"{image.width}x{image.height}"
-                    
-                    # Simpan sampel untuk debugging jika diaktifkan
-                    request_id = str(uuid.uuid4())[:8]
-                    if save_debug_sample:
-                        sample_path = save_sample_image(image, request_id, request_type)
-                        logger.info(f"Sampel gambar disimpan: {sample_path}")
-                    
-                    # Proses gambar
-                    img_array = preprocess_image(image)
-                    pred = model.predict(img_array)
-                    pred_index = np.argmax(pred)
-                    confidence = float(pred[0][pred_index])
-                    predicted_label = class_names[pred_index]
-                    
-                    # Update sampel dengan hasil prediksi
-                    if save_debug_sample:
-                        new_sample_path = save_sample_image(image, request_id, request_type, predicted_label)
-                        # Hapus sampel awal tanpa hasil prediksi
-                        if os.path.exists(sample_path):
-                            os.remove(sample_path)
-                        logger.info(f"Sampel gambar dengan prediksi disimpan: {new_sample_path}")
-                    
-                    result = {
-                        'predicted_class': predicted_label,
-                        'confidence': confidence,
-                        'confidence_percent': f"{confidence * 100:.2f}%"
-                    }
-                    
-                    # Log request berhasil dengan detail tambahan
-                    request_id, _ = log_request(request_type, prediction=result)
-                    
-                    # Log detail tambahan
-                    processing_time = time.time() - start_time
-                    logger.info(f"REQUEST #{request_id} | Data size: {data_size} bytes | " +
-                               f"Image size: {image_size} | Processing time: {processing_time:.4f}s")
-                    
-                    return jsonify(result)
-                except Exception as e:
-                    # Log error
-                    log_request(request_type, error=str(e))
-                    logger.error(f"Error pada proses form-urlencoded: {str(e)}")
-                    return jsonify({'error': f"Invalid form-urlencoded data: {str(e)}"}), 400
-            else:
-                log_request(request_type, error="No 'file' field in form data")
-                return jsonify({'error': 'No file field in form data'}), 400
+            log_request(request_type, error="Form-urlencoded tidak lagi didukung. Gunakan multipart/form-data untuk upload file langsung")
+            return jsonify({'error': 'Form-urlencoded tidak lagi didukung. Gunakan multipart/form-data untuk upload file langsung'}), 400
         
         # Cek jika request adalah teks (untuk MIT App Inventor PostText)
         elif request.content_type and 'text/plain' in request.content_type:
-            request_type = "text_base64"
-            logger.info(f"Menerima request text/plain (PostText) dari {request.remote_addr} | Size: {len(request.data)} bytes")
-            try:
-                # Ambil teks dari body request
-                base64_data = request.data.decode('utf-8')
-                data_size = len(base64_data)
-                
-                # Hilangkan 'data:image/jpeg;base64,' jika ada
-                if ',' in base64_data:
-                    base64_data = base64_data.split(',')[1]
-                
-                # Decode base64
-                image_data = base64.b64decode(base64_data)
-                
-                # Konversi ke PIL Image
-                image = Image.open(io.BytesIO(image_data))
-                image_size = f"{image.width}x{image.height}"
-                
-                # Simpan sampel untuk debugging jika diaktifkan
-                request_id = str(uuid.uuid4())[:8]
-                if save_debug_sample:
-                    sample_path = save_sample_image(image, request_id, request_type)
-                    logger.info(f"Sampel gambar disimpan: {sample_path}")
-                
-                # Proses gambar
-                img_array = preprocess_image(image)
-                pred = model.predict(img_array)
-                pred_index = np.argmax(pred)
-                confidence = float(pred[0][pred_index])
-                predicted_label = class_names[pred_index]
-                
-                # Update sampel dengan hasil prediksi
-                if save_debug_sample:
-                    new_sample_path = save_sample_image(image, request_id, request_type, predicted_label)
-                    # Hapus sampel awal tanpa hasil prediksi
-                    if os.path.exists(sample_path):
-                        os.remove(sample_path)
-                    logger.info(f"Sampel gambar dengan prediksi disimpan: {new_sample_path}")
-                
-                result = {
-                    'predicted_class': predicted_label,
-                    'confidence': confidence,
-                    'confidence_percent': f"{confidence * 100:.2f}%"
-                }
-                
-                # Log request berhasil dengan detail tambahan
-                request_id, _ = log_request(request_type, prediction=result)
-                
-                # Log detail tambahan
-                processing_time = time.time() - start_time
-                logger.info(f"REQUEST #{request_id} | Data size: {data_size} bytes | " +
-                           f"Image size: {image_size} | Processing time: {processing_time:.4f}s")
-                
-                return jsonify(result)
-            except Exception as e:
-                # Log error
-                log_request(request_type, error=str(e))
-                logger.error(f"Error pada proses PostText: {str(e)}")
-                return jsonify({'error': f"Invalid text data: {str(e)}"}), 400
+            request_type = "text_upload"
+            logger.info(f"Menerima request text/plain dari {request.remote_addr}")
+            log_request(request_type, error="Text/plain tidak lagi didukung. Gunakan multipart/form-data untuk upload file langsung")
+            return jsonify({'error': 'Text/plain tidak lagi didukung. Gunakan multipart/form-data untuk upload file langsung'}), 400
         
         # Cek apakah ada file di request
         if request.files:
@@ -713,9 +524,6 @@ def debug_request():
         if request.is_json:
             try:
                 json_data = request.get_json()
-                # Jika ada field 'file' dengan data base64 yang panjang, potong untuk tampilan
-                if isinstance(json_data, dict) and 'file' in json_data and isinstance(json_data['file'], str):
-                    json_data['file'] = json_data['file'][:50] + "..." if len(json_data['file']) > 50 else json_data['file']
                 request_info["json"] = json_data
             except:
                 request_info["json"] = "Error parsing JSON"
