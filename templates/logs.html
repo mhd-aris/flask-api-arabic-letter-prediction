@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log API Prediksi Huruf Arab</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .log-container {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            border-radius: 5px;
+            padding: 15px;
+            font-family: monospace;
+            overflow-x: auto;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .log-line {
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #34495e;
+        }
+        .log-line:hover {
+            background-color: #34495e;
+        }
+        .error {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .info {
+            color: #2ecc71;
+        }
+        .warning {
+            color: #f39c12;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #3498db;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .stat-box {
+            flex: 1;
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 0 5px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <h1>Log API Prediksi Huruf Arab</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <div>
+                <span>Menampilkan {{ count }} baris log terakhir</span>
+            </div>
+            <div>
+                <a href="/admin/logs?key=admin123&lines=10" class="btn">10 baris</a>
+                <a href="/admin/logs?key=admin123&lines=50" class="btn">50 baris</a>
+                <a href="/admin/logs?key=admin123&lines=100" class="btn">100 baris</a>
+                <a href="/admin/logs?key=admin123&lines=500" class="btn">500 baris</a>
+            </div>
+        </div>
+        
+        <div class="log-container">
+            {% for log in logs %}
+                <div class="log-line {% if 'ERROR' in log %}error{% elif 'WARNING' in log %}warning{% else %}info{% endif %}">
+                    {{ log }}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="controls">
+            <a href="/admin/detailed-logs?key=admin123" class="btn">Lihat Log Detail</a>
+            <a href="/admin/samples?key=admin123" class="btn">Lihat Sampel Gambar</a>
+            <a href="/" class="btn">Kembali ke Halaman Utama</a>
+        </div>
+    </div>
+    
+    <a href="/" class="back-link">Kembali ke Halaman Utama</a>
+    
+    <script>
+        // Auto-scroll ke bawah saat halaman dimuat
+        window.onload = function() {
+            const logContainer = document.querySelector('.log-container');
+            logContainer.scrollTop = logContainer.scrollHeight;
+        };
+    </script>
+</body>
+</html> 

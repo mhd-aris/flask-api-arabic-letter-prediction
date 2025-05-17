@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediksi Huruf Arab</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .upload-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .result {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+            display: none;
+        }
+        .preview-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #imagePreview {
+            max-width: 100%;
+            max-height: 300px;
+            margin-top: 10px;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 5px;
+            margin-top: 15px;
+            display: none;
+            text-align: center;
+        }
+        .api-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #3498db;
+            text-decoration: none;
+        }
+        .api-link:hover {
+            text-decoration: underline;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Aplikasi Prediksi Huruf Arab</h1>
+    
+    <div class="upload-container">
+        <div class="form-group">
+            <label for="imageUpload">Pilih gambar huruf Arab:</label>
+            <input type="file" id="imageUpload" class="form-control" accept="image/*">
+        </div>
+        
+        <div class="preview-container">
+            <img id="imagePreview" src="#" alt="Preview Gambar" style="display: none;">
+        </div>
+        
+        <button class="btn" id="predictBtn">Prediksi Huruf</button>
+        
+        <div class="loader" id="loader"></div>
+        <div class="error-message" id="errorMessage"></div>
+        
+        <div class="form-check" style="margin-top: 15px;">
+            <input type="checkbox" class="form-check-input" id="useBase64">
+            <label class="form-check-label" for="useBase64">Gunakan format Base64 (untuk pengujian)</label>
+        </div>
+    </div>
+    
+    <div class="result" id="result">
+        <h2>Hasil Prediksi:</h2>
+        <p><strong>Huruf:</strong> <span id="predictedClass"></span></p>
+        <p><strong>Tingkat Keyakinan:</strong> <span id="confidence"></span></p>
+    </div>
+    
+    <a href="/api-docs" class="api-link">Dokumentasi API untuk MIT App Inventor</a>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const imageUpload = document.getElementById('imageUpload');
+            const imagePreview = document.getElementById('imagePreview');
+            const predictBtn = document.getElementById('predictBtn');
+            const loader = document.getElementById('loader');
+            const result = document.getElementById('result');
+            const predictedClass = document.getElementById('predictedClass');
+            const confidence = document.getElementById('confidence');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // Tampilkan preview gambar
+            imageUpload.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        imagePreview.src = e.target.result;
+                        imagePreview.style.display = 'block';
+                    }
+                    reader.readAsDataURL(file);
+                }
+            });
+            
+            // Proses prediksi
+            predictBtn.addEventListener('click', function() {
+                const file = imageUpload.files[0];
+                if (!file) {
+                    alert('Silakan pilih gambar terlebih dahulu!');
+                    return;
+                }
+                
+                // Tampilkan loader
+                loader.style.display = 'block';
+                result.style.display = 'none';
+                errorMessage.style.display = 'none';
+                
+                // Buat FormData
+                const formData = new FormData();
+                formData.append('image', file);
+                
+                // Kirim ke API
+                if (document.getElementById('useBase64').checked) {
+                    // Konversi ke base64 dan kirim sebagai JSON
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = function() {
+                        const base64data = reader.result;
+                        
+                        // Kirim sebagai JSON
+                        fetch('/predict', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                image: base64data
+                            })
+                        })
+                        .then(response => {
+                            if (!response.ok) {
+                                return response.json().then(err => {
+                                    throw new Error(err.error || 'Terjadi kesalahan saat mengirim gambar.');
+                                });
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            displayResults(data);
+                        })
+                        .catch(error => {
+                            errorMessage.textContent = error.message;
+                            errorMessage.style.display = 'block';
+                        })
+                        .finally(() => {
+                            loader.style.display = 'none';
+                        });
+                    };
+                } else {
+                    // Kirim sebagai form data
+                    fetch('/predict', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(err => {
+                                throw new Error(err.error || 'Terjadi kesalahan saat mengirim gambar.');
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        displayResults(data);
+                    })
+                    .catch(error => {
+                        errorMessage.textContent = error.message;
+                        errorMessage.style.display = 'block';
+                    })
+                    .finally(() => {
+                        loader.style.display = 'none';
+                    });
+                }
+            });
+            
+            // Fungsi untuk menampilkan hasil
+            function displayResults(data) {
+                predictedClass.textContent = data.predicted_class;
+                confidence.textContent = data.confidence_percent;
+                result.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Detail API Prediksi Huruf Arab</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .request-container {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 5px solid #3498db;
+        }
+        .request-header {
+            font-weight: bold;
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+        }
+        .request-body {
+            font-family: monospace;
+            white-space: pre-wrap;
+            padding: 10px;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+        }
+        .request-body.active {
+            display: block;
+        }
+        .error {
+            border-left-color: #e74c3c;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            margin-right: 5px;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #3498db;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .search-container {
+            margin-bottom: 20px;
+        }
+        .search-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        .filter-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .filter-btn {
+            background-color: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            color: #2c3e50;
+            padding: 5px 10px;
+            border-radius: 15px;
+            cursor: pointer;
+        }
+        .filter-btn.active {
+            background-color: #3498db;
+            color: white;
+            border-color: #2980b9;
+        }
+        .badge {
+            background-color: #3498db;
+            color: white;
+            border-radius: 10px;
+            padding: 3px 8px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .badge.error {
+            background-color: #e74c3c;
+        }
+        .badge.success {
+            background-color: #2ecc71;
+        }
+        .timestamp {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Log Detail API Prediksi Huruf Arab</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <div>
+                <span>Menampilkan {{ count }} request terakhir</span>
+            </div>
+            <div>
+                <a href="/admin/detailed-logs?key=admin123&lines=10" class="btn">10 request</a>
+                <a href="/admin/detailed-logs?key=admin123&lines=50" class="btn">50 request</a>
+                <a href="/admin/detailed-logs?key=admin123&lines=100" class="btn">100 request</a>
+            </div>
+        </div>
+        
+        <div class="search-container">
+            <input type="text" id="searchInput" class="search-input" placeholder="Cari di log (IP, jenis request, prediksi, error, dll)...">
+            <div class="filter-container">
+                <button class="filter-btn active" data-filter="all">Semua</button>
+                <button class="filter-btn" data-filter="json_base64">JSON Base64</button>
+                <button class="filter-btn" data-filter="text_base64">Text Base64</button>
+                <button class="filter-btn" data-filter="form_data">Form Data</button>
+                <button class="filter-btn" data-filter="raw_binary">Raw Binary</button>
+                <button class="filter-btn" data-filter="error">Error</button>
+            </div>
+        </div>
+        
+        <div id="requestsContainer">
+            {% for request in requests %}
+                {% set has_error = "Error:" in request %}
+                {% set request_type = request.split("Type: ")[1].split("\n")[0] if "Type: " in request else "unknown" %}
+                <div class="request-container {% if has_error %}error{% endif %}" data-type="{{ request_type }}">
+                    <div class="request-header" onclick="toggleRequest(this)">
+                        <div>
+                            {% if "REQUEST " in request %}
+                                {% set request_id = request.split(" | ")[0] %}
+                                {{ request_id }}
+                            {% else %}
+                                Request
+                            {% endif %}
+                            
+                            {% if "Prediction:" in request %}
+                                {% set prediction = request.split("Class: ")[1].split("\n")[0] if "Class: " in request else "" %}
+                                <span class="badge success">{{ prediction }}</span>
+                            {% endif %}
+                            
+                            {% if has_error %}
+                                <span class="badge error">Error</span>
+                            {% endif %}
+                        </div>
+                        <span class="timestamp">
+                            {% if " | " in request %}
+                                {{ request.split(" | ")[1] }}
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="request-body">{{ request }}</div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="controls">
+            <a href="/admin/logs?key=admin123" class="btn">Lihat Log Ringkas</a>
+            <a href="/admin/samples?key=admin123" class="btn">Lihat Sampel Gambar</a>
+            <a href="/" class="btn">Kembali ke Halaman Utama</a>
+        </div>
+    </div>
+    
+    <script>
+        // Toggle tampilan detail request
+        function toggleRequest(element) {
+            const body = element.nextElementSibling;
+            body.classList.toggle('active');
+        }
+        
+        // Fungsi pencarian
+        document.getElementById('searchInput').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            filterRequests(searchTerm, getActiveFilter());
+        });
+        
+        // Filter berdasarkan tipe
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                filterRequests(document.getElementById('searchInput').value.toLowerCase(), this.dataset.filter);
+            });
+        });
+        
+        function getActiveFilter() {
+            return document.querySelector('.filter-btn.active').dataset.filter;
+        }
+        
+        function filterRequests(searchTerm, filterType) {
+            const containers = document.querySelectorAll('.request-container');
+            
+            containers.forEach(container => {
+                const text = container.textContent.toLowerCase();
+                const type = container.dataset.type;
+                
+                const matchesSearch = searchTerm === '' || text.includes(searchTerm);
+                const matchesFilter = filterType === 'all' || 
+                                     (filterType === 'error' && container.classList.contains('error')) ||
+                                     (filterType === 'form_data' && (type.includes('form_data'))) ||
+                                     type.includes(filterType);
+                
+                container.style.display = matchesSearch && matchesFilter ? 'block' : 'none';
+            });
+        }
+    </script>
+</body>
+</html> 

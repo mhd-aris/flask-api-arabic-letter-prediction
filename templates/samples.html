@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sampel Gambar Prediksi Huruf Arab</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .samples-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .sample-card {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        .sample-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .sample-image {
+            width: 100%;
+            height: 200px;
+            object-fit: contain;
+            border-radius: 5px;
+            background-color: #ecf0f1;
+            margin-bottom: 10px;
+        }
+        .sample-info {
+            font-size: 14px;
+        }
+        .sample-info p {
+            margin: 5px 0;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: white;
+            margin-right: 5px;
+        }
+        .badge-json {
+            background-color: #3498db;
+        }
+        .badge-text {
+            background-color: #9b59b6;
+        }
+        .badge-form {
+            background-color: #2ecc71;
+        }
+        .badge-raw {
+            background-color: #e67e22;
+        }
+        .badge-unknown {
+            background-color: #7f8c8d;
+        }
+        .prediction {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 18px;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            margin-right: 5px;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .filter-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .filter-btn {
+            background-color: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            color: #2c3e50;
+            padding: 5px 10px;
+            border-radius: 15px;
+            cursor: pointer;
+        }
+        .filter-btn.active {
+            background-color: #3498db;
+            color: white;
+            border-color: #2980b9;
+        }
+        .search-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 90%;
+            max-height: 90%;
+        }
+        .modal-image {
+            max-width: 100%;
+            max-height: 80vh;
+            object-fit: contain;
+            background-color: white;
+            border: 5px solid white;
+            border-radius: 5px;
+        }
+        .close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            color: white;
+            font-size: 30px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sampel Gambar Prediksi Huruf Arab</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <div>
+                <span>Menampilkan {{ count }} sampel gambar terakhir</span>
+            </div>
+            <div>
+                <a href="/admin/samples?key=admin123&max=20" class="btn">20 sampel</a>
+                <a href="/admin/samples?key=admin123&max=50" class="btn">50 sampel</a>
+                <a href="/admin/samples?key=admin123&max=100" class="btn">100 sampel</a>
+            </div>
+        </div>
+        
+        <div class="filter-container">
+            <button class="filter-btn active" data-filter="all">Semua</button>
+            <button class="filter-btn" data-filter="json_base64">JSON Base64</button>
+            <button class="filter-btn" data-filter="text_base64">Text Base64</button>
+            <button class="filter-btn" data-filter="form_data">Form Data</button>
+            <button class="filter-btn" data-filter="raw_binary">Raw Binary</button>
+        </div>
+        
+        <input type="text" id="searchInput" class="search-input" placeholder="Cari berdasarkan huruf, request ID, atau tipe request...">
+        
+        <div class="samples-grid">
+            {% for sample in samples %}
+                <div class="sample-card" data-type="{{ sample.request_type }}" data-prediction="{{ sample.predicted_class }}">
+                    <img src="/admin/samples/{{ sample.filename }}?key=admin123" alt="Sampel Gambar" class="sample-image" onclick="openModal(this.src)">
+                    <div class="sample-info">
+                        {% if sample.predicted_class %}
+                            <p class="prediction">Prediksi: {{ sample.predicted_class }}</p>
+                        {% endif %}
+                        
+                        <p>
+                            {% if 'json_base64' in sample.request_type %}
+                                <span class="badge badge-json">JSON Base64</span>
+                            {% elif 'text_base64' in sample.request_type %}
+                                <span class="badge badge-text">Text Base64</span>
+                            {% elif 'form_data' in sample.request_type %}
+                                <span class="badge badge-form">Form Data</span>
+                            {% elif 'raw_binary' in sample.request_type %}
+                                <span class="badge badge-raw">Raw Binary</span>
+                            {% else %}
+                                <span class="badge badge-unknown">{{ sample.request_type }}</span>
+                            {% endif %}
+                        </p>
+                        
+                        <p>ID: {{ sample.request_id }}</p>
+                        <p>Tanggal: {{ sample.date[:4] }}-{{ sample.date[4:6] }}-{{ sample.date[6:8] }} {{ sample.date[9:11] }}:{{ sample.date[11:13] }}:{{ sample.date[13:15] }}</p>
+                        <p>Ukuran: {{ (sample.size / 1024)|round(1) }} KB</p>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="controls">
+            <a href="/admin/logs?key=admin123" class="btn">Lihat Log</a>
+            <a href="/admin/detailed-logs?key=admin123" class="btn">Lihat Log Detail</a>
+            <a href="/" class="btn">Kembali ke Halaman Utama</a>
+        </div>
+    </div>
+    
+    <!-- Modal untuk melihat gambar lebih besar -->
+    <div id="imageModal" class="modal">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <div class="modal-content">
+            <img id="modalImage" class="modal-image" src="" alt="Gambar Sampel">
+        </div>
+    </div>
+    
+    <script>
+        // Filter sampel berdasarkan tipe
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                filterSamples(document.getElementById('searchInput').value.toLowerCase(), this.dataset.filter);
+            });
+        });
+        
+        // Fungsi pencarian
+        document.getElementById('searchInput').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            filterSamples(searchTerm, getActiveFilter());
+        });
+        
+        function getActiveFilter() {
+            return document.querySelector('.filter-btn.active').dataset.filter;
+        }
+        
+        function filterSamples(searchTerm, filterType) {
+            const cards = document.querySelectorAll('.sample-card');
+            
+            cards.forEach(card => {
+                const type = card.dataset.type;
+                const prediction = card.dataset.prediction || '';
+                const text = card.textContent.toLowerCase();
+                
+                const matchesSearch = searchTerm === '' || 
+                                     text.includes(searchTerm) || 
+                                     prediction.toLowerCase().includes(searchTerm);
+                                     
+                const matchesFilter = filterType === 'all' || 
+                                     type.includes(filterType);
+                
+                card.style.display = matchesSearch && matchesFilter ? 'block' : 'none';
+            });
+        }
+        
+        // Modal untuk melihat gambar lebih besar
+        function openModal(imageSrc) {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImage');
+            modal.style.display = "block";
+            modalImg.src = imageSrc;
+        }
+        
+        function closeModal() {
+            document.getElementById('imageModal').style.display = "none";
+        }
+        
+        // Tutup modal jika user mengklik di luar gambar
+        window.onclick = function(event) {
+            const modal = document.getElementById('imageModal');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html> 
