@@ -383,11 +383,93 @@ def predict():
                             logger.info(f"Found filename parameter: {params['filename']}")
                 except:
                     logger.warning("Tidak dapat decode request.data sebagai UTF-8")
+            elif not request.form and request.content_length and request.content_length > 0:
+                # Coba baca dari buffer input stream untuk permintaan yang kompleks
+                try:
+                    # MIT App Inventor dapat mengirim data yang tidak selalu dapat diakses melalui request.data
+                    # Coba baca langsung dari input stream
+                    raw_data_bytes = request.stream.read()
+                    logger.info(f"Raw stream data size: {len(raw_data_bytes)} bytes")
+                    
+                    # Coba decode
+                    try:
+                        raw_data = raw_data_bytes.decode('utf-8')
+                        logger.info(f"Stream data (decoded): {raw_data[:100]}{'...' if len(raw_data) > 100 else ''}")
+                    except:
+                        logger.info(f"Stream data (hex): {' '.join([f'{b:02x}' for b in raw_data_bytes[:50]])}...")
+                    
+                    # Simpan data ini untuk diproses
+                    if raw_data_bytes:
+                        # Simpan untuk pemrosesan nanti
+                        temp_raw_path = os.path.join(os.getcwd(), 'temp_stream.jpg')
+                        with open(temp_raw_path, 'wb') as f:
+                            f.write(raw_data_bytes)
+                        logger.info(f"Stream data saved to {temp_raw_path}")
+                        
+                        # Coba buka sebagai gambar
+                        try:
+                            from PIL import Image
+                            img = Image.open(temp_raw_path)
+                            logger.info(f"Stream data successfully opened as image: {img.format} {img.size}")
+                            
+                            # Jika berhasil, buat FileStorage dan lanjutkan ke pemrosesan
+                            from io import BytesIO
+                            from werkzeug.datastructures import FileStorage
+                            file = FileStorage(
+                                stream=BytesIO(raw_data_bytes),
+                                filename='stream_data.jpg',
+                                content_type='image/jpeg'
+                            )
+                            
+                            # Proses gambar
+                            img_array = preprocess_image(img)
+                            pred = model.predict(img_array)
+                            pred_index = np.argmax(pred)
+                            confidence = float(pred[0][pred_index])
+                            predicted_label = class_names[pred_index]
+                            
+                            # Simpan sampel untuk debugging
+                            request_id = str(uuid.uuid4())[:8]
+                            if save_debug_sample:
+                                sample_path = os.path.join('logs', 'samples', f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{request_id}_stream_data.jpg")
+                                shutil.copy2(temp_raw_path, sample_path)
+                                logger.info(f"Stream data sample saved: {sample_path}")
+                            
+                            # Hapus file temporary
+                            if os.path.exists(temp_raw_path):
+                                os.remove(temp_raw_path)
+                            
+                            result = {
+                                'predicted_class': predicted_label,
+                                'confidence': confidence,
+                                'confidence_percent': f"{confidence * 100:.2f}%"
+                            }
+                            
+                            # Log success
+                            request_id, _ = log_request(request_type, prediction=result)
+                            logger.info(f"REQUEST #{request_id} | Stream data processed successfully | Prediction: {predicted_label}")
+                            
+                            return jsonify(result)
+                        except Exception as e:
+                            logger.error(f"Error processing stream data as image: {str(e)}")
+                except Exception as e:
+                    logger.error(f"Error reading from request stream: {str(e)}")
+            else:
+                # Log request headers lebih detail untuk membantu debugging
+                logger.info("Request form kosong dan tidak ada raw data")
+                logger.info(f"Request headers: {dict(request.headers)}")
+                logger.info(f"Content-Length: {request.content_length}")
+                logger.info(f"Content-Type: {request.content_type}")
+                logger.info(f"User-Agent: {request.user_agent}")
             
             # Jika data kosong atau tidak dapat diproses, berikan panduan penggunaan API
             if not request.form and not raw_data:
+                error_message = "Empty request. Untuk MIT App Inventor, gunakan salah satu metode berikut:\n" + \
+                               "1. Web.PostFile - URL: http://[server]/predict, parameter Path: path ke file gambar\n" + \
+                               "2. Web.PostText - URL: http://[server]/predict, parameter Text: hasil Canvas.toBase64()"
                 log_request(request_type, error="Empty form-urlencoded request")
-                return jsonify({'error': 'Empty request. Untuk MIT App Inventor, gunakan Web.PostFile untuk mengirim gambar langsung'}), 400
+                logger.error(f"Permintaan form-urlencoded kosong dengan detail headers: {dict(request.headers)}")
+                return jsonify({'error': error_message}), 400
 
             # Jika data diterima dalam raw body, coba proses sebagai file gambar
             if request.data:

@@ -93,6 +93,63 @@ Content-Type: image/jpeg
 }
 ```
 
+## MIT App Inventor Integration
+
+### Using PostFile (Recommended Method)
+
+Using `Web.PostFile` is the most reliable method for sending images from MIT App Inventor:
+
+1. Add a `Web` component to your app
+2. Set up the request as follows:
+   - URL: `http://your-server-address:5000/predict`
+   - Use the `PostFile` method with the path to your image
+   
+```
+# Block Example
+when Button1.Click
+  call Web1.PostFile(
+    Url: "http://your-server-address:5000/predict",
+    Path: ImagePath
+  )
+```
+
+### Using PostText (Alternative Method)
+
+If you prefer to use `PostText`, follow these steps:
+
+1. Take a picture or select an image
+2. Draw the image to a Canvas
+3. Convert the canvas to a data representation
+4. Send using PostText with content-type "text/plain"
+
+```
+# Block Example
+when ButtonSendImage.Click
+  call Web1.PostText(
+    Url: "http://your-server-address:5000/predict",
+    Text: Canvas1.toBase64(),
+    Encoding: "UTF-8",
+    ContentType: "text/plain"
+  )
+```
+
+### Common Issues and Solutions
+
+1. **Empty Request Error**: 
+   - Make sure you're specifying the correct path to the image file
+   - Verify that the image exists before sending
+   - Check that you're setting the proper URL
+
+2. **Connection Issues**:
+   - Make sure the server is running and accessible from your device
+   - Check network permissions in your app
+   - Try using a direct IP address instead of a hostname
+
+3. **Debugging Tips**:
+   - Add labels to display the response text
+   - Use the debugging view in MIT App Inventor
+   - Check the API logs at `/admin/logs?key=admin123` to see detailed request information
+
 ## Admin Endpoints
 
 This API also provides several admin endpoints for monitoring:
