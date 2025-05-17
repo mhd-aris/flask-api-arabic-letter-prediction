@@ -93,11 +93,14 @@
         <p>Endpoint ini menerima gambar huruf Arab dan mengembalikan prediksi huruf yang terdeteksi beserta tingkat keyakinannya.</p>
         
         <h2>Parameter Request</h2>
-        <p>Endpoint ini menerima file gambar yang dapat dikirim dengan beberapa cara:</p>
+        <p>Endpoint ini menerima gambar huruf Arab yang dapat dikirim dengan beberapa cara:</p>
         <ul>
             <li>Menggunakan form data dengan nama field <code>file</code> (multipart/form-data)</li>
             <li>Menggunakan form data tanpa nama field spesifik (kompatibel dengan MIT App Inventor)</li>
             <li>Mengirim data gambar mentah sebagai body request (binary)</li>
+            <li>Mengirim JSON dengan field <code>file</code>, <code>image</code>, atau <code>data</code> yang berisi string gambar base64</li>
+            <li>Mengirim teks biasa (plain text) berisi data gambar (kompatibel dengan MIT App Inventor PostText)</li>
+            <li>Mengirim form URL-encoded dengan data gambar</li>
         </ul>
         
         <h2>Response</h2>
@@ -122,22 +125,30 @@
         <h3>1. Tambahkan komponen Web pada MIT App Inventor</h3>
         <p>Tambahkan komponen <code>Web</code> ke aplikasi Anda.</p>
         
-        <h3>2. Gunakan PostFile untuk mengirim gambar</h3>
+        <h3>2. Opsi 1: Gunakan PostFile untuk mengirim gambar</h3>
         <p>Gunakan blok <code>Web.PostFile</code> untuk mengirim gambar ke API. Contoh konfigurasi:</p>
         <ul>
             <li>URL: <code>http://[alamat_server_anda]:5000/predict</code></li>
             <li>Path ke file: path ke gambar dari perangkat</li>
         </ul>
         
+        <h3>2. Opsi 2: Gunakan PostText dengan Canvas toBase64</h3>
+        <p>Alternatif lain, Anda dapat menggunakan <code>Web.PostText</code> dengan gambar yang dikonversi langsung:</p>
+        <ol>
+            <li>Ambil gambar dari kamera atau pemilih file</li>
+            <li>Tampilkan gambar di Canvas</li>
+            <li>Kirim data gambar menggunakan <code>Web.PostText</code> dengan Content-Type: text/plain</li>
+        </ol>
+        
         <div class="note">
-            <p><strong>Catatan:</strong> API ini didesain khusus untuk mendukung MIT App Inventor menggunakan PostFile.</p>
+            <p><strong>Catatan:</strong> API ini didesain khusus untuk mendukung MIT App Inventor baik menggunakan PostFile maupun PostText.</p>
         </div>
         
         <h3>3. Menangani response</h3>
         <p>Tambahkan event handler <code>Web.GotText</code> untuk menangani respons dari API:</p>
         <pre><code>// Contoh pseudocode untuk blocks di MIT App Inventor
 when Web.GotText
-  set JsonResponse to Web.JsonTextDeconce(responseContent)
+  set JsonResponse to Web.JsonTextDecode(responseContent)
   set predictedLabel to JsonResponse.get("predicted_class")
   set confidencePercent to JsonResponse.get("confidence_percent")
   
@@ -147,16 +158,24 @@ when Web.GotText
     </div>
     
     <div class="container">
-        <h2>Contoh Penggunaan dengan File Upload</h2>
+        <h2>Contoh Penggunaan</h2>
         
-        <h3>Contoh Request dengan curl:</h3>
+        <h3>Contoh Request dengan Form Data:</h3>
         <pre><code>curl -X POST \
   http://localhost:5000/predict \
   -F 'file=@/path/to/image.jpg'</code></pre>
         
+        <h3>Contoh Request dengan JSON dan Base64:</h3>
+        <pre><code>curl -X POST \
+  http://localhost:5000/predict \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "file": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/..."
+  }'</code></pre>
+        
         <h3>Contoh dengan JavaScript:</h3>
-        <pre><code>// Mengirim gambar ke API
-async function predictImage(file) {
+        <pre><code>// Mengirim gambar ke API dengan form data
+async function predictImageWithForm(file) {
   try {
     const formData = new FormData();
     formData.append('file', file);
@@ -172,9 +191,34 @@ async function predictImage(file) {
   } catch (error) {
     console.error('Error:', error);
   }
+}
+
+// Mengirim gambar ke API dengan base64
+async function predictImageWithBase64(file) {
+  try {
+    // Convert file to base64
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    const base64 = await new Promise(resolve => {
+      reader.onload = () => resolve(reader.result);
+    });
+    
+    const response = await fetch('http://localhost:5000/predict', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ file: base64 })
+    });
+    
+    const result = await response.json();
+    console.log(result);
+  } catch (error) {
+    console.error('Error:', error);
+  }
 }</code></pre>
 
-        <h3>Contoh dengan MIT App Inventor:</h3>
+        <h3>Contoh dengan MIT App Inventor (PostFile):</h3>
         <p>Berikut adalah pseudocode untuk blok di MIT App Inventor:</p>
         <pre><code>// 1. Ambil gambar dari kamera
 when ButtonTakePicture.Click
@@ -201,6 +245,29 @@ when Web1.GotText(responseContent)
   // Tampilkan hasil
   set LabelHasil.Text to "Huruf: " + predictedLabel
   set LabelKeyakinan.Text to "Keyakinan: " + confidencePercent</code></pre>
+
+        <h3>Contoh dengan MIT App Inventor (PostText):</h3>
+        <pre><code>// 1. Ambil gambar dari kamera
+when ButtonTakePicture.Click
+  call Camera1.TakePicture
+
+// 2. Setelah gambar diambil
+when Camera1.AfterPicture(image)
+  set ImagePath to image
+  call Canvas1.DrawImage(image, 0, 0)
+
+// 3. Kirim data gambar langsung
+when ButtonPredict.Click
+  call Web1.PostText(
+    Url: "http://[alamat_server_anda]:5000/predict",
+    Text: Canvas1.toBase64(), // atau text lain yang berisi data gambar
+    Encoding: "UTF-8",
+    ContentType: "text/plain"
+  )
+
+// 4. Tangani response
+when Web1.GotText(responseContent)
+  // Sama seperti contoh sebelumnya</code></pre>
         
     </div>
     

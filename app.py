@@ -4,6 +4,7 @@ from tensorflow.keras.utils import img_to_array, load_img
 import numpy as np
 import os
 import logging
+import base64
 import io
 from PIL import Image
 import time
@@ -262,21 +263,339 @@ def predict():
         if request.is_json:
             request_type = "json_file_upload"
             logger.info(f"Menerima request JSON dari {request.remote_addr}")
-            return jsonify({'error': 'JSON base64 tidak lagi didukung. Gunakan multipart/form-data untuk upload file langsung'}), 400
+            
+            # Dapatkan data JSON
+            try:
+                data = request.get_json()
+                logger.info(f"JSON keys: {list(data.keys() if isinstance(data, dict) else [])}")
+                
+                # Cek apakah ada field yang berisi data gambar (file, image, dll)
+                image_fields = ['file', 'image', 'data', 'gambar', 'photo', 'picture']
+                found_field = None
+                image_data = None
+                
+                for field in image_fields:
+                    if field in data and data[field]:
+                        found_field = field
+                        image_data = data[field]
+                        logger.info(f"Found image data in field '{field}'")
+                        break
+                
+                if image_data:
+                    try:
+                        # Convert data ke bytes jika itu base64
+                        
+                        # Hilangkan 'data:image/jpeg;base64,' jika ada
+                        if isinstance(image_data, str) and ',' in image_data:
+                            image_data = image_data.split(',')[1]
+                        
+                        # Decode base64
+                        binary_data = base64.b64decode(image_data)
+                        
+                        # Simpan ke file sementara
+                        temp_path = os.path.join(os.getcwd(), 'temp_upload.jpg')
+                        with open(temp_path, 'wb') as f:
+                            f.write(binary_data)
+                        
+                        # Proses gambar
+                        img = load_img(temp_path, target_size=(156, 156))
+                        img_array = preprocess_image(img)
+                        pred = model.predict(img_array)
+                        pred_index = np.argmax(pred)
+                        confidence = float(pred[0][pred_index])
+                        predicted_label = class_names[pred_index]
+                        
+                        # Simpan sampel untuk debugging jika diaktifkan
+                        request_id = str(uuid.uuid4())[:8]
+                        if save_debug_sample:
+                            sample_path = os.path.join('logs', 'samples', f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{request_id}_{request_type}.jpg")
+                            shutil.copy2(temp_path, sample_path)
+                            logger.info(f"Sampel gambar disimpan: {sample_path}")
+                        
+                        # Update sampel dengan hasil prediksi
+                        if save_debug_sample:
+                            new_sample_path = os.path.join('logs', 'samples', f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{request_id}_{request_type}_{predicted_label}.jpg")
+                            shutil.copy2(temp_path, new_sample_path)
+                            if os.path.exists(sample_path):
+                                os.remove(sample_path)
+                            logger.info(f"Sampel gambar dengan prediksi disimpan: {new_sample_path}")
+                        
+                        # Hapus file sementara
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+                        
+                        result = {
+                            'predicted_class': predicted_label,
+                            'confidence': confidence,
+                            'confidence_percent': f"{confidence * 100:.2f}%"
+                        }
+                        
+                        # Log request berhasil
+                        request_id, _ = log_request(request_type, prediction=result)
+                        logger.info(f"REQUEST #{request_id} | JSON base64 (field: {found_field}) berhasil diproses | Prediksi: {predicted_label}")
+                        
+                        return jsonify(result)
+                    except Exception as e:
+                        log_request(request_type, error=f"Error processing JSON base64: {str(e)}")
+                        logger.error(f"Error processing JSON base64: {str(e)}")
+                        return jsonify({'error': f"Error processing JSON base64: {str(e)}"}), 400
+                else:
+                    log_request(request_type, error="No image data found in JSON")
+                    return jsonify({'error': 'No image data found in JSON. Use fields like "file", "image", or "data"'}), 400
+            except Exception as e:
+                log_request(request_type, error=f"Error parsing JSON: {str(e)}")
+                logger.error(f"Error parsing JSON: {str(e)}")
+                return jsonify({'error': f"Error parsing JSON: {str(e)}"}), 400
         
         # Cek jika request adalah form-urlencoded dengan base64
         elif request.content_type and 'application/x-www-form-urlencoded' in request.content_type:
             request_type = "form_urlencoded_upload"
             logger.info(f"Menerima request form-urlencoded dari {request.remote_addr}")
-            log_request(request_type, error="Form-urlencoded tidak lagi didukung. Gunakan multipart/form-data untuk upload file langsung")
-            return jsonify({'error': 'Form-urlencoded tidak lagi didukung. Gunakan multipart/form-data untuk upload file langsung'}), 400
+            
+            # Log data yang diterima untuk debugging
+            logger.info(f"Form data keys: {list(request.form.keys())}")
+            for key in request.form:
+                value = request.form[key]
+                value_preview = value[:50] + "..." if len(value) > 50 else value
+                logger.info(f"Form field: {key} = {value_preview}")
+            
+            # Log raw data jika form kosong
+            raw_data = None
+            if not request.form and request.data:
+                try:
+                    # Coba decode raw data sebagai string
+                    raw_data = request.data.decode('utf-8')
+                    logger.info(f"Raw data size: {len(raw_data)} bytes")
+                    logger.info(f"Raw data preview: {raw_data[:100]}{'...' if len(raw_data) > 100 else ''}")
+                    
+                    # Coba cari nama file dari raw data (teknik khusus MIT App Inventor)
+                    if '&' in raw_data and '=' in raw_data:
+                        params = {}
+                        for param in raw_data.split('&'):
+                            if '=' in param:
+                                key, value = param.split('=', 1)
+                                params[key] = value
+                        
+                        logger.info(f"Extracted parameters: {params}")
+                        
+                        # MIT App Inventor mungkin mengirim nama file sebagai parameter
+                        if 'filename' in params:
+                            logger.info(f"Found filename parameter: {params['filename']}")
+                except:
+                    logger.warning("Tidak dapat decode request.data sebagai UTF-8")
+            
+            # Jika data kosong atau tidak dapat diproses, berikan panduan penggunaan API
+            if not request.form and not raw_data:
+                log_request(request_type, error="Empty form-urlencoded request")
+                return jsonify({'error': 'Empty request. Untuk MIT App Inventor, gunakan Web.PostFile untuk mengirim gambar langsung'}), 400
+
+            # Jika data diterima dalam raw body, coba proses sebagai file gambar
+            if request.data:
+                try:
+                    # Simpan data raw ke file sementara
+                    temp_raw_path = os.path.join(os.getcwd(), 'temp_raw.jpg')
+                    with open(temp_raw_path, 'wb') as f:
+                        f.write(request.data)
+                    
+                    # Buat FileStorage object untuk mempertahankan konsistensi kode
+                    from io import BytesIO
+                    from werkzeug.datastructures import FileStorage
+                    file = FileStorage(
+                        stream=BytesIO(request.data),
+                        filename='formdata.jpg',
+                        content_type='image/jpeg'
+                    )
+                    
+                    # Simpan file sementara
+                    temp_path = os.path.join(os.getcwd(), 'temp_upload.jpg')
+                    file.save(temp_path)
+                    
+                    # Proses gambar dari file yang disimpan
+                    img = load_img(temp_path, target_size=(156, 156))
+                    img_array = preprocess_image(img)
+                    pred = model.predict(img_array)
+                    pred_index = np.argmax(pred)
+                    confidence = float(pred[0][pred_index])
+                    predicted_label = class_names[pred_index]
+                    
+                    # Simpan sampel untuk debugging jika diaktifkan
+                    request_id = str(uuid.uuid4())[:8]
+                    if save_debug_sample:
+                        sample_path = os.path.join('logs', 'samples', f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{request_id}_{request_type}.jpg")
+                        shutil.copy2(temp_path, sample_path)
+                        logger.info(f"Sampel gambar disimpan: {sample_path}")
+                    
+                    # Update sampel dengan hasil prediksi jika diaktifkan
+                    if save_debug_sample:
+                        new_sample_path = os.path.join('logs', 'samples', f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{request_id}_{request_type}_{predicted_label}.jpg")
+                        shutil.copy2(temp_path, new_sample_path)
+                        if os.path.exists(sample_path):
+                            os.remove(sample_path)
+                        logger.info(f"Sampel gambar dengan prediksi disimpan: {new_sample_path}")
+                    
+                    # Hapus file sementara
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                    if os.path.exists(temp_raw_path):
+                        os.remove(temp_raw_path)
+                    
+                    result = {
+                        'predicted_class': predicted_label,
+                        'confidence': confidence,
+                        'confidence_percent': f"{confidence * 100:.2f}%"
+                    }
+                    
+                    # Log request berhasil
+                    request_id, _ = log_request(request_type, prediction=result)
+                    logger.info(f"REQUEST #{request_id} | Form-urlencoded data berhasil diproses | Prediksi: {predicted_label}")
+                    
+                    return jsonify(result)
+                except Exception as e:
+                    log_request(request_type, error=f"Error processing form-urlencoded data: {str(e)}")
+                    logger.error(f"Error processing form-urlencoded data: {str(e)}")
+                    return jsonify({'error': f"Error processing form-urlencoded data: {str(e)}"}), 400
+            
+            # Cek jika ada field-field yang umum digunakan
+            for field_name in request.form:
+                # Coba proses field sebagai data gambar
+                try:
+                    # Ambil data dari field
+                    field_data = request.form[field_name]
+                    
+                    # Simpan data ke file sementara
+                    temp_raw_path = os.path.join(os.getcwd(), 'temp_raw.jpg') 
+                    with open(temp_raw_path, 'wb') as f:
+                        f.write(field_data.encode('utf-8') if isinstance(field_data, str) else field_data)
+                    
+                    # Buat FileStorage object
+                    from io import BytesIO
+                    from werkzeug.datastructures import FileStorage
+                    file = FileStorage(
+                        stream=BytesIO(field_data.encode('utf-8') if isinstance(field_data, str) else field_data),
+                        filename=f'{field_name}.jpg',
+                        content_type='image/jpeg'
+                    )
+                    
+                    # Simpan file sementara
+                    temp_path = os.path.join(os.getcwd(), 'temp_upload.jpg')
+                    file.save(temp_path)
+                    
+                    # Proses gambar
+                    img = load_img(temp_path, target_size=(156, 156))
+                    img_array = preprocess_image(img)
+                    pred = model.predict(img_array)
+                    pred_index = np.argmax(pred)
+                    confidence = float(pred[0][pred_index])
+                    predicted_label = class_names[pred_index]
+                    
+                    # Update log dan sampel
+                    request_id, _ = log_request(request_type, prediction={'predicted_class': predicted_label, 'confidence_percent': f"{confidence * 100:.2f}%"})
+                    logger.info(f"REQUEST #{request_id} | Field '{field_name}' processed | Prediksi: {predicted_label}")
+                    
+                    # Hapus file sementara
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                    if os.path.exists(temp_raw_path):
+                        os.remove(temp_raw_path)
+                    
+                    result = {
+                        'predicted_class': predicted_label,
+                        'confidence': confidence,
+                        'confidence_percent': f"{confidence * 100:.2f}%"
+                    }
+                    
+                    return jsonify(result)
+                    
+                except Exception as e:
+                    logger.warning(f"Field '{field_name}' tidak dapat diproses: {str(e)}")
+            
+            # Jika sampai di sini, berarti tidak ada field yang dapat diproses
+            log_request(request_type, error="Tidak ada field form-urlencoded yang valid")
+            return jsonify({'error': 'Tidak ada field yang valid dalam request. Untuk MIT App Inventor, gunakan Web.PostFile untuk mengirim gambar'}), 400
         
         # Cek jika request adalah teks (untuk MIT App Inventor PostText)
         elif request.content_type and 'text/plain' in request.content_type:
             request_type = "text_upload"
             logger.info(f"Menerima request text/plain dari {request.remote_addr}")
-            log_request(request_type, error="Text/plain tidak lagi didukung. Gunakan multipart/form-data untuk upload file langsung")
-            return jsonify({'error': 'Text/plain tidak lagi didukung. Gunakan multipart/form-data untuk upload file langsung'}), 400
+            
+            if request.data:
+                try:
+                    # Log preview dari data
+                    text_data = request.data.decode('utf-8', errors='replace')
+                    text_preview = text_data[:100] + "..." if len(text_data) > 100 else text_data
+                    logger.info(f"Text data preview: {text_preview}")
+                    logger.info(f"Text data size: {len(request.data)} bytes")
+                    
+                    # Simpan data raw ke file sementara dan coba buka sebagai gambar
+                    temp_raw_path = os.path.join(os.getcwd(), 'temp_raw.jpg')
+                    with open(temp_raw_path, 'wb') as f:
+                        f.write(request.data)
+                    
+                    # Buat FileStorage object untuk mempertahankan konsistensi kode
+                    from io import BytesIO
+                    from werkzeug.datastructures import FileStorage
+                    file = FileStorage(
+                        stream=BytesIO(request.data),
+                        filename='textplain.jpg',
+                        content_type='image/jpeg'
+                    )
+                    
+                    # Simpan file sementara
+                    temp_path = os.path.join(os.getcwd(), 'temp_upload.jpg')
+                    file.save(temp_path)
+                    
+                    # Proses gambar dari file yang disimpan
+                    try:
+                        img = load_img(temp_path, target_size=(156, 156))
+                        img_array = preprocess_image(img)
+                        pred = model.predict(img_array)
+                        pred_index = np.argmax(pred)
+                        confidence = float(pred[0][pred_index])
+                        predicted_label = class_names[pred_index]
+                        
+                        # Simpan sampel untuk debugging jika diaktifkan
+                        request_id = str(uuid.uuid4())[:8]
+                        if save_debug_sample:
+                            sample_path = os.path.join('logs', 'samples', f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{request_id}_{request_type}.jpg")
+                            shutil.copy2(temp_path, sample_path)
+                            logger.info(f"Sampel gambar disimpan: {sample_path}")
+                        
+                        # Update sampel dengan hasil prediksi jika diaktifkan
+                        if save_debug_sample:
+                            new_sample_path = os.path.join('logs', 'samples', f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{request_id}_{request_type}_{predicted_label}.jpg")
+                            shutil.copy2(temp_path, new_sample_path)
+                            if os.path.exists(sample_path):
+                                os.remove(sample_path)
+                            logger.info(f"Sampel gambar dengan prediksi disimpan: {new_sample_path}")
+                        
+                        # Hapus file sementara
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+                        if os.path.exists(temp_raw_path):
+                            os.remove(temp_raw_path)
+                        
+                        result = {
+                            'predicted_class': predicted_label,
+                            'confidence': confidence,
+                            'confidence_percent': f"{confidence * 100:.2f}%"
+                        }
+                        
+                        # Log request berhasil
+                        request_id, _ = log_request(request_type, prediction=result)
+                        logger.info(f"REQUEST #{request_id} | Text/plain data berhasil diproses | Prediksi: {predicted_label}")
+                        
+                        return jsonify(result)
+                    except Exception as e:
+                        log_request(request_type, error=f"Error processing text/plain data as image: {str(e)}")
+                        logger.error(f"Error processing text/plain data as image: {str(e)}")
+                        return jsonify({'error': f"Error processing text/plain data as image: {str(e)}"}), 400
+                except Exception as e:
+                    log_request(request_type, error=f"Error processing text/plain request: {str(e)}")
+                    logger.error(f"Error processing text/plain request: {str(e)}")
+                    return jsonify({'error': f"Error processing text/plain request: {str(e)}"}), 400
+            else:
+                log_request(request_type, error="Empty text/plain request")
+                return jsonify({'error': 'Empty text/plain request'}), 400
         
         # Cek apakah ada file di request
         if request.files:
