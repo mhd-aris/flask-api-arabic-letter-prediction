@@ -191,6 +191,20 @@ def log_request(request_type, prediction=None, error=None):
     
     return request_id, request_details
 
+# Fungsi untuk menentukan nilai kemiripan berdasarkan confidence
+def get_similarity(confidence):
+    confidence_percent = int(confidence * 100)
+    if confidence_percent >= 90:
+        return "Sempurna"
+    elif confidence_percent >= 70:
+        return "Sangat Mirip"
+    else:
+        return "Mirip"
+
+# Fungsi untuk memformat confidence menjadi skor langsung
+def format_confidence(confidence):
+    return int(confidence * 100)
+
 # Halaman utama
 @app.route('/')
 def index():
@@ -326,8 +340,9 @@ def predict():
                         
                         result = {
                             'predicted_class': predicted_label,
-                            'confidence': confidence,
-                            'confidence_percent': f"{confidence * 100:.2f}%"
+                            'confidence': format_confidence(confidence),
+                            'confidence_percent': f"{format_confidence(confidence)}%",
+                            'similarity': get_similarity(confidence)
                         }
                         
                         # Log request berhasil
@@ -441,8 +456,9 @@ def predict():
                             
                             result = {
                                 'predicted_class': predicted_label,
-                                'confidence': confidence,
-                                'confidence_percent': f"{confidence * 100:.2f}%"
+                                'confidence': format_confidence(confidence),
+                                'confidence_percent': f"{format_confidence(confidence)}%",
+                                'similarity': get_similarity(confidence)
                             }
                             
                             # Log success
@@ -523,8 +539,9 @@ def predict():
                     
                     result = {
                         'predicted_class': predicted_label,
-                        'confidence': confidence,
-                        'confidence_percent': f"{confidence * 100:.2f}%"
+                        'confidence': format_confidence(confidence),
+                        'confidence_percent': f"{format_confidence(confidence)}%",
+                        'similarity': get_similarity(confidence)
                     }
                     
                     # Log request berhasil
@@ -571,7 +588,7 @@ def predict():
                     predicted_label = class_names[pred_index]
                     
                     # Update log dan sampel
-                    request_id, _ = log_request(request_type, prediction={'predicted_class': predicted_label, 'confidence_percent': f"{confidence * 100:.2f}%"})
+                    request_id, _ = log_request(request_type, prediction={'predicted_class': predicted_label, 'confidence_percent': f"{format_confidence(confidence)}%"})
                     logger.info(f"REQUEST #{request_id} | Field '{field_name}' processed | Prediksi: {predicted_label}")
                     
                     # Hapus file sementara
@@ -582,8 +599,9 @@ def predict():
                     
                     result = {
                         'predicted_class': predicted_label,
-                        'confidence': confidence,
-                        'confidence_percent': f"{confidence * 100:.2f}%"
+                        'confidence': format_confidence(confidence),
+                        'confidence_percent': f"{format_confidence(confidence)}%",
+                        'similarity': get_similarity(confidence)
                     }
                     
                     return jsonify(result)
@@ -658,8 +676,9 @@ def predict():
                         
                         result = {
                             'predicted_class': predicted_label,
-                            'confidence': confidence,
-                            'confidence_percent': f"{confidence * 100:.2f}%"
+                            'confidence': format_confidence(confidence),
+                            'confidence_percent': f"{format_confidence(confidence)}%",
+                            'similarity': get_similarity(confidence)
                         }
                         
                         # Log request berhasil
@@ -765,10 +784,13 @@ def predict():
         if 'temp_raw_path' in locals() and os.path.exists(temp_raw_path):
             os.remove(temp_raw_path)
 
+        
+
         result = {
             'predicted_class': predicted_label,
-            'confidence': confidence,
-            'confidence_percent': f"{confidence * 100:.2f}%"
+            'confidence': format_confidence(confidence),
+            'confidence_percent': f"{format_confidence(confidence)}%",
+            'similarity': get_similarity(confidence)
         }
         
         # Log request berhasil dengan detail tambahan
